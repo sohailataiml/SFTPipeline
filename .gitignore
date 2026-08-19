@@ -1,0 +1,15 @@
+# Training artifacts produced by running the notebook
+sft_adapter/
+sft_output/
+runs/
+wandb/
+
+# Python / Jupyter
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# HF caches
+.cache/
