@@ -66,7 +66,7 @@ You do not need to change any code to switch GPU — precision is detected at ru
 ### What success looks like
 
 - §1.2 prints your GPU name and `Mixed precision : bfloat16`
-- §8.1 prints roughly **1% trainable** — the LoRA adapters against a frozen 4-bit base
+- §8.1 prints **8,798,208 trainable (1.75%)** — the LoRA adapters against a frozen 4-bit base
 - §8.2 shows a live loss table that trends downward
 - §12 renders the base-vs-fine-tuned comparison table
 - §13 ends with `All 13 checks passed.`
@@ -130,7 +130,7 @@ Compare Base vs Fine-Tuned Model
 | --- | --- | --- |
 | Base model | `Qwen/Qwen2.5-0.5B-Instruct` | Ungated (no token needed), small enough to train in minutes on any Colab GPU, ships an official ChatML chat template, and uses standard `q_proj`/`v_proj`-style module names that PEFT targets cleanly. |
 | Dataset | `b-mc2/sql-create-context` | Natural-language question + `CREATE TABLE` schema → SQL. Ungated, CC-BY-4.0, short sequences, and a task whose correct *output format* is unambiguous — which makes the before/after difference visible rather than a matter of taste. |
-| Method | QLoRA (4-bit NF4 base + LoRA r=16) | The assignment's target technique; ~1% of parameters trainable. |
+| Method | QLoRA (4-bit NF4 base + LoRA r=16) | The assignment's target technique; 8,798,208 of 502,830,976 parameters trainable (1.75%), measured on a real run. |
 | Trainer | TRL `SFTTrainer` | Current supported SFT API; handles chat templating and completion-only loss masking. |
 
 The reference material for this assignment used Llama 2. That was not carried over: Llama 2 is gated
