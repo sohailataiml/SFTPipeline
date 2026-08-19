@@ -142,3 +142,54 @@ from peft import PeftModel
 base = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct", device_map="auto")
 model = PeftModel.from_pretrained(base, "./sft_adapter")
 ```
+
+---
+
+## Provenance: which Hugging Face skills this was built and audited against
+
+This notebook was audited against the **official Hugging Face skills repository**
+([huggingface/skills](https://github.com/huggingface/skills)) at commit
+`020194918dc4a27d5a5d9a154b6b56cc2bd21364` — the exact commit the official Claude Code plugin
+marketplace pins for the `huggingface-skills` plugin.
+
+**Important caveat:** those skills are **not installed** in this environment. They were read directly
+from the upstream repository at the pinned commit, not invoked as installed skills. The skill *text*
+is byte-identical to what an install would provide; the difference is invocation, not content.
+
+Skills consulted:
+
+| Skill | Used for |
+| --- | --- |
+| `huggingface-llm-trainer` | SFT/TRL training patterns, reliability principles, dataset validation, eval-dataset requirement, hardware and precision guidance, ephemeral-environment warning |
+| `huggingface-llm-trainer/scripts/dataset_inspector.py` | Actually executed against `b-mc2/sql-create-context`; reported `[SFT] NEEDS MAPPING`, which section 4 performs |
+| `huggingface-llm-trainer/scripts/train_sft_example.py` | Reference LoRA config (`r=16`, `alpha=32`, `dropout=0.05`, `bias="none"`, `task_type="CAUSAL_LM"`) |
+| `trl-training` | `SFTTrainer`/`SFTConfig` usage, LoRA learning rate (2e-4), general TRL best practices |
+| `huggingface-datasets` | Datasets Server `/is-valid` endpoint used by the pre-flight cell |
+
+To install them for real:
+
+```bash
+# Route A - Claude Code plugin marketplace
+/plugin marketplace add huggingface/skills
+/plugin install hf-cli@huggingface-skills
+
+# Route B - the hf CLI's own skill installer (puts the individual
+# skills into ~/.claude/skills, where they can be invoked directly)
+curl -LsSf https://hf.co/cli/install.sh | bash -s
+hf skills list
+hf skills add --claude --global
+```
+
+### Deliberate deviations from the skill guidance
+
+Both are documented inline in the notebook rather than applied silently.
+
+| Skill guidance | What this notebook does | Why |
+| --- | --- | --- |
+| "Always include Trackio" for monitoring | `report_to="none"`; metrics read from `trainer.state.log_history` | Trackio needs an HF token and a Trackio Space. The skill's target is Hugging Face Jobs, where training runs detached and logs are the only window in; here the trainer prints metrics straight into the cell. |
+| "Always enable Hub push — environment is ephemeral" | Optional, opt-in cell (section 10.1), off by default | The warning applies to Colab too, but making it mandatory would require a token and break tokenless *Run all*. The cell documents both Hub push and local download. |
+
+The skills contain **no `BitsAndBytesConfig` guidance for the TRL path** — their only 4-bit
+references are via Unsloth's `FastLanguageModel`. The QLoRA quantization setup here therefore follows
+the Transformers/PEFT documentation and the QLoRA paper (NF4, double quantization, bf16 compute), and
+is outside what the skills cover.
