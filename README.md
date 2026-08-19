@@ -71,7 +71,7 @@ adapters does not come close to filling an L4's 24 GB.
 
 - §1.2 prints your GPU name and `Mixed precision : bfloat16`
 - §8.1 prints **8,798,208 trainable (1.75%)** — the LoRA adapters against a frozen 4-bit base
-- §8.2 shows a live loss table that trends downward (measured: train 0.111 → 0.039,
+- §8.2 shows a live loss table that trends downward (measured: train 0.417 → 0.039,
   eval 0.114 → 0.063, mean token accuracy 0.967 → 0.982)
 - §12 renders the base-vs-fine-tuned comparison table
 - §13 ends with `All 13 checks passed.`
@@ -223,12 +223,13 @@ on joins and aggregations is not measured here.
 
 ## Reading the training loss honestly
 
-The loss starts around 0.11 rather than the 1–3 typical of an SFT run, and mean token accuracy is
-already 96.7% at step 25. That is not the model being unusually good — it is `completion_only_loss`
-doing its job. Loss is computed on roughly 16 highly-patterned SQL tokens with the schema already in
-context, and teacher-forced next-token prediction on `SELECT COUNT(*) FROM head WHERE age > 56` is an
-easy problem. **A low loss here is not evidence that the model emits valid SQL when generating
-freely** — section 12 is the only part of this notebook that tests that.
+Training loss falls from 0.417 at step 1 to 0.039 at step 250, and is already down to 0.111 by step
+25 with 96.7% mean token accuracy. Both the low starting point and the fast early drop are expected
+here, and neither means the model is unusually good — it is `completion_only_loss` doing its job.
+Loss is computed on roughly 16 highly-patterned SQL tokens with the schema already in context, and
+teacher-forced next-token prediction on `SELECT COUNT(*) FROM head WHERE age > 56` is an easy
+problem. **A low loss here is not evidence that the model emits valid SQL when generating freely** —
+section 12 is the only part of this notebook that tests that.
 
 Eval loss also plateaus around step 150 (0.0641 → 0.0630 over the final 100 steps) while training
 loss keeps halving, which is the onset of overfitting. Two epochs is kept because it makes the loss
