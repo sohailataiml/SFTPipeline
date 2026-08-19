@@ -195,6 +195,32 @@ would otherwise raise `TypeError` at runtime:
 
 ---
 
+## Measured result
+
+On a real run, the four held-out evaluation prompts produced:
+
+| | Base model | Fine-tuned |
+| --- | --- | --- |
+| Emitted bare SQL | 1 of 4 | 4 of 4 |
+| Exact match vs dataset reference | 0 of 4 | **4 of 4** |
+
+The fine-tuned outputs matched the reference SQL character-for-character, quoting style included.
+The base model produced prose explanations for three prompts — one of which hallucinated a `games`
+table that does not exist in the supplied schema — and correct SQL for the fourth.
+
+That fourth prompt is the most informative one. The base model already answered it correctly
+(`... WHERE wins < 2 AND losses > 1;`); the only difference after fine-tuning is the dropped trailing
+semicolon. This is the clearest evidence of what SFT actually did here: the model always knew SQL,
+and what it learned was to *always* emit a bare query and to follow this dataset's no-semicolon
+convention. On the third prompt it learned something stronger than formatting — grounding the query
+in the schema it was given rather than inventing a table name.
+
+Caveats worth keeping attached to that table: it is four examples, all single-table queries, and the
+base model's longer answers are truncated at `MAX_NEW_TOKENS=128` rather than finished. Correctness
+on joins and aggregations is not measured here.
+
+---
+
 ## Reading the training loss honestly
 
 The loss starts around 0.11 rather than the 1–3 typical of an SFT run, and mean token accuracy is
