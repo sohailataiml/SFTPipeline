@@ -152,33 +152,38 @@ This notebook was audited against the **official Hugging Face skills repository*
 `020194918dc4a27d5a5d9a154b6b56cc2bd21364` — the exact commit the official Claude Code plugin
 marketplace pins for the `huggingface-skills` plugin.
 
-**Important caveat:** those skills are **not installed** in this environment. They were read directly
-from the upstream repository at the pinned commit, not invoked as installed skills. The skill *text*
-is byte-identical to what an install would provide; the difference is invocation, not content.
+These skills are **installed** into `~/.claude/skills/` and invocable. They were installed via the
+[skills.sh](https://www.skills.sh) registry, pinned explicitly to the official `huggingface/skills`
+repository:
 
-Skills consulted:
+```bash
+npx skills add huggingface/skills --global --agent claude-code --skill <name> --yes
+```
+
+The installed copies were then diffed against the audited clone at commit `0201949`: **all six are
+byte-identical**, so the audit below was not invalidated by the install.
+
+> Pin the source repo explicitly. A search for "huggingface" on skills.sh returns 100 results across
+> 32 different owners, and several third parties publish skills under names identical to the official
+> ones — `trl-training`, `hf-cli` and `huggingface-accelerate` each appear from more than one source.
+> Skills are instructions an agent executes, so `huggingface/skills` should be named, not inferred.
+
+Skills installed and used:
 
 | Skill | Used for |
 | --- | --- |
 | `huggingface-llm-trainer` | SFT/TRL training patterns, reliability principles, dataset validation, eval-dataset requirement, hardware and precision guidance, ephemeral-environment warning |
-| `huggingface-llm-trainer/scripts/dataset_inspector.py` | Actually executed against `b-mc2/sql-create-context`; reported `[SFT] NEEDS MAPPING`, which section 4 performs |
+| `huggingface-llm-trainer/scripts/dataset_inspector.py` | Executed against `b-mc2/sql-create-context`; reported `[SFT] NEEDS MAPPING`, which section 4 performs |
 | `huggingface-llm-trainer/scripts/train_sft_example.py` | Reference LoRA config (`r=16`, `alpha=32`, `dropout=0.05`, `bias="none"`, `task_type="CAUSAL_LM"`) |
-| `trl-training` | `SFTTrainer`/`SFTConfig` usage, LoRA learning rate (2e-4), general TRL best practices |
+| `trl-training` | `SFTTrainer`/`SFTConfig` usage, LoRA learning rate (2e-4), packing guidance, general TRL best practices |
 | `huggingface-datasets` | Datasets Server `/is-valid` endpoint used by the pre-flight cell |
+| `huggingface-trackio` | Monitoring option evaluated for section 8 (see deviations below) |
+| `hf-cli` | Hub operations |
 
-To install them for real:
-
-```bash
-# Route A - Claude Code plugin marketplace
-/plugin marketplace add huggingface/skills
-/plugin install hf-cli@huggingface-skills
-
-# Route B - the hf CLI's own skill installer (puts the individual
-# skills into ~/.claude/skills, where they can be invoked directly)
-curl -LsSf https://hf.co/cli/install.sh | bash -s
-hf skills list
-hf skills add --claude --global
-```
+The skills.sh install surfaced a third-party **Snyk "Med Risk"** rating on five of the six
+(`huggingface-trackio` rated Low). Socket reported 0 alerts and the generative scan reported Safe for
+all six. The rating is not explained by the registry; the contents are the official Hugging Face
+repository at a pinned commit, and were read directly before use.
 
 ### Deliberate deviations from the skill guidance
 
@@ -188,6 +193,7 @@ Both are documented inline in the notebook rather than applied silently.
 | --- | --- | --- |
 | "Always include Trackio" for monitoring | `report_to="none"`; metrics read from `trainer.state.log_history` | Trackio needs an HF token and a Trackio Space. The skill's target is Hugging Face Jobs, where training runs detached and logs are the only window in; here the trainer prints metrics straight into the cell. |
 | "Always enable Hub push — environment is ephemeral" | Optional, opt-in cell (section 10.1), off by default | The warning applies to Colab too, but making it mandatory would require a token and break tokenless *Run all*. The cell documents both Hub push and local download. |
+| `trl-training`: `--packing` fixes slow training on short sequences | `packing=False` | Our sequences *are* short (median 91 tokens), so the flag applies. But in TRL 1.x the default `bfd` packing strategy forces padding-free mode, which is only reliable with a FlashAttention backend. `huggingface-llm-trainer`'s Reliability Principle 2 ("Prioritize Reliability Over Performance") breaks the tie — there is no speed problem to solve in a run this short. Documented inline in section 8. |
 
 The skills contain **no `BitsAndBytesConfig` guidance for the TRL path** — their only 4-bit
 references are via Unsloth's `FastLanguageModel`. The QLoRA quantization setup here therefore follows
