@@ -52,7 +52,7 @@ You do not need to change any code to switch GPU — precision is detected at ru
 
 ### Run it
 
-*Runtime → Run all.* Rough timings on an L4:
+*Runtime → Run all.* Timings on a bfloat16 GPU:
 
 | Stage | Sections | Time |
 | --- | --- | --- |
@@ -60,14 +60,19 @@ You do not need to change any code to switch GPU — precision is detected at ru
 | Pre-flight, dataset, formatting | 2.1–4.2 | under 1 min |
 | Base model download + load in 4-bit | 5 | ~1 min |
 | Baseline generations | 6 | under 1 min |
-| **SFT training (250 steps)** | 8.2 | **3–8 min** |
+| **SFT training (250 steps)** | 8.2 | **~2:54 (measured)** |
 | Save, reload, post-training generations | 10–12 | 1–2 min |
+
+Measured on a real run: `train_runtime` 175.9 s, 22.7 samples/s, **peak GPU memory 4.24 GB**. The
+memory headroom is why `gradient_checkpointing=False` is safe here — a 0.5B model in 4-bit with r=16
+adapters does not come close to filling an L4's 24 GB.
 
 ### What success looks like
 
 - §1.2 prints your GPU name and `Mixed precision : bfloat16`
 - §8.1 prints **8,798,208 trainable (1.75%)** — the LoRA adapters against a frozen 4-bit base
-- §8.2 shows a live loss table that trends downward
+- §8.2 shows a live loss table that trends downward (measured: train 0.111 → 0.039,
+  eval 0.114 → 0.063, mean token accuracy 0.967 → 0.982)
 - §12 renders the base-vs-fine-tuned comparison table
 - §13 ends with `All 13 checks passed.`
 - §15 prints the run report
@@ -187,6 +192,22 @@ would otherwise raise `TypeError` at runtime:
 | 13 | Sanity checks (13 assertions covering GPU use, data, adapters, artifacts, reload) |
 | 14 | Conceptual architecture diagram |
 | 15 | Final summary and run report |
+
+---
+
+## Reading the training loss honestly
+
+The loss starts around 0.11 rather than the 1–3 typical of an SFT run, and mean token accuracy is
+already 96.7% at step 25. That is not the model being unusually good — it is `completion_only_loss`
+doing its job. Loss is computed on roughly 16 highly-patterned SQL tokens with the schema already in
+context, and teacher-forced next-token prediction on `SELECT COUNT(*) FROM head WHERE age > 56` is an
+easy problem. **A low loss here is not evidence that the model emits valid SQL when generating
+freely** — section 12 is the only part of this notebook that tests that.
+
+Eval loss also plateaus around step 150 (0.0641 → 0.0630 over the final 100 steps) while training
+loss keeps halving, which is the onset of overfitting. Two epochs is kept because it makes the loss
+curve in section 9 more legible; `NUM_TRAIN_EPOCHS = 1` reaches a comparable eval loss in half the
+time if you would rather have the compute back.
 
 ---
 
