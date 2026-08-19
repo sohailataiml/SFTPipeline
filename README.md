@@ -6,17 +6,91 @@ before/after comparison of model behaviour.
 
 **Deliverable:** [`SFT_QLoRA_Pipeline.ipynb`](SFT_QLoRA_Pipeline.ipynb)
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sohailataiml/SFTPipeline/blob/main/SFT_QLoRA_Pipeline.ipynb)
+
 ---
 
 ## Quick start
 
-1. Open the notebook in Google Colab.
+1. Click the **Open in Colab** badge above (or use the link in *Running it in Colab* below).
 2. **Runtime → Change runtime type → GPU.** An **L4** or **A100** is recommended (bfloat16 support).
    A T4 works but is slower and falls back to fp16.
 3. **Runtime → Run all.**
 
 No Hugging Face token, no license acceptance, no manual configuration. Expected wall-clock on an L4:
 roughly **8–15 minutes**, most of it in the training cell.
+
+---
+
+## Running it in Colab
+
+### Open it
+
+```
+https://colab.research.google.com/github/sohailataiml/SFTPipeline/blob/main/SFT_QLoRA_Pipeline.ipynb
+```
+
+That URL loads this repo's notebook directly — no download, no upload, no sign-in to GitHub. It opens
+a scratch copy; **Colab will not write back to this repo** unless you explicitly choose
+*File → Save a copy in GitHub*.
+
+Alternatives, if you prefer: in Colab use *File → Open notebook → GitHub* and paste
+`sohailataiml/SFTPipeline`; or download `SFT_QLoRA_Pipeline.ipynb` and use *File → Upload notebook*.
+
+### Attach a GPU (required)
+
+*Runtime → Change runtime type → Hardware accelerator → **GPU***, then pick the type:
+
+| GPU | Works? | Notes |
+| --- | --- | --- |
+| **L4** | Best default | bfloat16; the Colab Pro standard allocation |
+| **A100** | Best performance | bfloat16; use if you have compute units to spend |
+| **T4** | Works, slower | No bfloat16 — the notebook auto-detects this and falls back to fp16, and prints a warning |
+| CPU / TPU | **No** | Section 1.2 stops with a clear message. QLoRA needs bitsandbytes CUDA kernels. |
+
+You do not need to change any code to switch GPU — precision is detected at runtime.
+
+### Run it
+
+*Runtime → Run all.* Rough timings on an L4:
+
+| Stage | Sections | Time |
+| --- | --- | --- |
+| pip install | 1.1 | 1–3 min |
+| Pre-flight, dataset, formatting | 2.1–4.2 | under 1 min |
+| Base model download + load in 4-bit | 5 | ~1 min |
+| Baseline generations | 6 | under 1 min |
+| **SFT training (250 steps)** | 8.2 | **3–8 min** |
+| Save, reload, post-training generations | 10–12 | 1–2 min |
+
+### What success looks like
+
+- §1.2 prints your GPU name and `Mixed precision : bfloat16`
+- §8.1 prints roughly **1% trainable** — the LoRA adapters against a frozen 4-bit base
+- §8.2 shows a live loss table that trends downward
+- §12 renders the base-vs-fine-tuned comparison table
+- §13 ends with `All 13 checks passed.`
+- §15 prints the run report
+
+If §13 raises, it names exactly which check failed.
+
+### If something goes wrong
+
+| Symptom | Fix |
+| --- | --- |
+| Colab shows a **"Restart runtime"** button after the install cell | Click it, then *Runtime → Run all* again. The install cell is idempotent and the second pass is cached. |
+| `ImportError` / `ModuleNotFoundError` in section 1.2 | Same fix: *Runtime → Restart session*, then *Run all*. This happens when a package was already imported before being upgraded. |
+| `RuntimeError: NO CUDA GPU DETECTED` | No GPU attached — see *Attach a GPU* above. |
+| Pre-flight raises on the model or dataset | The Hub was unreachable or a name is wrong. Re-run the cell; it is a pure network check. |
+| `CUDA out of memory` | Unlikely at 0.5B/4-bit, but: lower `PER_DEVICE_BS` to 4 and raise `GRAD_ACCUM_STEPS` to 4 in section 2, then *Run all*. |
+| Runtime disconnects mid-training | Colab reclaims idle sessions. Re-run from the top; nothing is corrupted. To keep the adapter across disconnects, use section 10.1. |
+
+### Keeping the trained adapter
+
+`./sft_adapter` lives only inside the Colab session and disappears when the runtime is recycled.
+Section **10.1** is an opt-in cell for keeping it — set `DOWNLOAD_LOCALLY = True` to pull a zip to your
+machine, or `PUSH_TO_HUB = True` (plus `HUB_MODEL_ID`) to push the few-MB adapter to the Hub. Both are
+off by default so *Run all* works without a token.
 
 ---
 
@@ -110,7 +184,7 @@ would otherwise raise `TypeError` at runtime:
 | 10 | Save the LoRA adapter to `./sft_adapter`; list generated files and sizes |
 | 11 | Tear down the trainer, free GPU, reload base + adapter **from disk** |
 | 12 | **Post-training inference** on the same prompts; side-by-side comparison table |
-| 13 | Sanity checks (12 assertions covering GPU use, data, adapters, artifacts, reload) |
+| 13 | Sanity checks (13 assertions covering GPU use, data, adapters, artifacts, reload) |
 | 14 | Conceptual architecture diagram |
 | 15 | Final summary and run report |
 
